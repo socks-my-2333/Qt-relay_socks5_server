@@ -27,12 +27,16 @@ SOURCES += \
         main.cpp \
         mainwindow.cpp \
     server.cpp \
-    thread.cpp
+    thread.cpp \
+    analysis.cpp \
+    udp.cpp
 
 HEADERS += \
         mainwindow.h \
     server.h \
-    thread.h
+    thread.h \
+    analysis.h \
+    udp.h
 
 FORMS += \
         mainwindow.ui

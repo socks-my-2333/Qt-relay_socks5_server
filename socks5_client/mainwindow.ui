@@ -30,7 +30,7 @@
       <item>
        <widget class="QLineEdit" name="lineServerIP">
         <property name="text">
-         <string>127.0.0.1</string>
+         <string>23.94.229.178</string>
         </property>
        </widget>
       </item>

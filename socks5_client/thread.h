@@ -10,6 +10,12 @@
 #include <QNetworkInterface>
 #include <QTime>
 #include <QUdpSocket>
+#include "analysis.h"
+
+#define TCP_STYLE 1
+#define UDP_STYLE 3
+#define IPV4_POST 1
+#define DOMAIN_POST 3
 
 class Thread : public QThread
 {
@@ -29,12 +35,16 @@ private:
 	
 	QString sourceIp;	//客户端ip
 	QString targetIp;	//目标IP
+	
 	QString targetDomain;	//目标域名
 	int targetPort = 0;		//目标端口
-	int udpPort = 0;		//本地监听的端口
 	
-	int post = 0;			//地址类型
-	int style = 0;
+	int ServerudpPort = 0;		//本地监听的端口
+	int ClientudpPort = 0;		//socks5客户端端口
+	QString ClientIP;			//socks5客户IP
+	
+	int post = 0;			//协议类型
+	int style = 0;			//通信方式
 	
 	bool isUdp = false;		//udp是否开始转发
 	
@@ -43,8 +53,7 @@ private:
 	
 	int dataSum =0;		//记录接受的数据包
 	
-	QByteArray temp2Target;
-	QByteArray temp2Source;
+	QByteArray token;
 	
 signals:
 	void sendSize(int size);
@@ -61,12 +70,6 @@ private slots:
 	bool secondMutula();
 	bool checkPro(QByteArray buf);
 	
-	void getDomain(QByteArray buf);
-	void getIP(QByteArray buf);
-	
-	QString hexToIP(QByteArray s ,QByteArray w, QByteArray l ,QByteArray q);	//将hexIP转stringip
-	int	   hexToPort(QByteArray buf);
-	QByteArray ipToHex(QString ip);
 public slots:
 	void run();		//线程开始函数
 	void leave();		//线程中断后的socket清理函数

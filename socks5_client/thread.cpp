@@ -14,7 +14,7 @@ Thread::~Thread()
 
 void Thread::run()
 {
-	qDebug()<<"new Thread:"<<this->currentThreadId();
+//	qDebug()<<"new Thread:"<<this->currentThreadId();
 	this->target = new QTcpSocket();
 	this->socket = new QTcpSocket();
 	
@@ -44,7 +44,7 @@ void Thread::run()
 	
 	connect(this->socket,&QTcpSocket::disconnected,this,&Thread::leave,Qt::DirectConnection);
 	connect(this->target,&QTcpSocket::disconnected,this,&Thread::leave,Qt::DirectConnection);
-	connect(this->socket,&QTcpSocket::readyRead,this,&Thread::writeToTarget,Qt::DirectConnection);	//交给分发函数
+	connect(this->socket,&QTcpSocket::readyRead,this,&Thread::writeToTarget,Qt::DirectConnection);	
 	connect(this->target,&QTcpSocket::readyRead,this,&Thread::writeToSource,Qt::DirectConnection);
 	if(this->style == 3)
 		{
@@ -57,7 +57,7 @@ void Thread::run()
 
 void Thread::writeToSource()
 {
-	qDebug()<<"write to source:";
+//	qDebug()<<"write to source:";
 	QByteArray buffer = this->target->readAll();
 	
 	emit sendSize(buffer.size());
@@ -72,7 +72,7 @@ void Thread::writeToSource()
 
 void Thread::writeToTarget()
 {
-	qDebug()<<"write to target:";
+//	qDebug()<<"write to target:";
 	QByteArray buffer = this->socket->readAll();
 	
 	for(int i =0;i<buffer.size();i++)
@@ -85,41 +85,91 @@ void Thread::writeToTarget()
 
 void Thread::udpToSource()
 {
-	QByteArray buff;
+	int readSize = udpClient->bytesAvailable()+1;
+	char *recv = new char[readSize];
 	QHostAddress address;
 	quint16 port;
-	udpClient->readDatagram(buff.data(),buff.size(),&address,&port);
+	udpClient->readDatagram(recv,readSize,&address,&port);
 	
-	QByteArray temp = ipToHex(address.toString());
+	
+	QByteArray buff(recv,readSize);
+//	qDebug()<<"udp recv:"<<buff;
+	
+	QByteArray tempIP = Analysis::ipToHex(this->targetIp);
+	QByteArray tempPort = Analysis::portToHex(this->targetPort);
 	
 	QByteArray send;
+	/*
 	send.resize(10);
 	send[0] = 0x00;
 	send[1] = 0x00;
 	send[2] = 0x00;
 	send[3] = 0x01;
-	send[4] = temp[0];
-	send[5] = temp[1];
-	send[6] = temp[2];
-	send[7] = temp[3];
-	
-	udpServer->writeDatagram(send+buff,this->socket->peerAddress(),this->targetPort);
+	send[4] = tempIP[0];
+	send[5] = tempIP[1];
+	send[6] = tempIP[2];
+	send[7] = tempIP[3];
+	send[8] = tempPort[0];
+	send[9] = tempPort[1];
+	*/
+	send = this->token + buff;
+	qDebug()<<"result "<<send;
+	udpServer->writeDatagram(send,QHostAddress(this->ClientIP),(quint16)this->ClientudpPort);
+	delete recv;
+	recv = NULL;
 }
 
 void Thread::udpToTarget()
 {
-	QByteArray buff;
-	QHostAddress address;
-	quint16 port;
-	udpClient->readDatagram(buff.data(),buff.size(),&address,&port);
+	int readSize = udpServer->bytesAvailable() + 1;
+	qDebug()<<"UDP size "<<readSize;
+	char *recv = new char[readSize];
+		
 	
-	QByteArray temp = ipToHex(address.toString());
+	
+	QHostAddress address;	
+	quint16 port;
+	udpServer->readDatagram(recv,readSize,&address,&port);  //用来接收客户端的数据，解析后由代理服务器发给目标
+	
+	QByteArray buff(recv,readSize);
+	
+	int allLength = Analysis::hexAllLength(buff);	//判断目标信息部分总长提取分离目标信息部分和数据部分
+	this->targetPort =  Analysis::hexToPort(buff.mid(0,allLength+1));
+	this->token = buff.mid(0,allLength);
+	QByteArray tarIP;
+	if(0x01 == buff[3])		//目标ip
+		{
+			tarIP =  Analysis::hexToIP(buff);
+			this->targetIp = QString(tarIP);
+
+			udpClient->writeDatagram(buff.mid(allLength+1,buff.size()),QHostAddress(QString(tarIP)),(quint16)targetPort);
+		}
+	else	if(0x03 == buff[3])		//目标域名
+		{
+			 tarIP = Analysis::hexToDomain(buff);
+			 QHostInfo info = QHostInfo::fromName(tarIP);
+			 this->targetIp = QString(info.addresses().first().toString());
+			 udpClient->writeDatagram(buff.mid(allLength+1,buff.size()),info.addresses().first(),(quint16)targetPort);
+		}
+	else 
+		{
+			qDebug()<<"error # 143  udp";
+			return;
+		}
+
+	
+	delete recv;
+	recv = NULL;
+	
 }
 
 bool Thread::udpInit()
 {
+	this->ClientIP = this->targetIp;
+	this->ClientudpPort = this->targetPort;
+	
 	QByteArray send;
-	send.resize(10);
+	send.resize(8);
 	send[0] = 0x05;
 	send[1] = 0x00;
 	send[2] = 0x00;
@@ -137,20 +187,12 @@ bool Thread::udpInit()
 	udpClient = new QUdpSocket();
 	udpClient->bind();
 	
-	int localPort = udpServer->localPort();
-	QByteArray bytePort = QString::number(localPort).toUtf8().toHex();
+	this->serverPort = udpServer->localPort();
 	
-	if(localPort>255)
-	{
-		send[8] = bytePort[0];
-		send[9] = bytePort[1];
-	}
-	else
-	{
-		send[9] = bytePort[0];
-	}
+	send[8] = (serverPort / 256);
+	send[9] = (serverPort % 256);
 	
-	this->udpPort = localPort;
+	qDebug()<<"local port: "<<serverPort;
 	socket->write(send);
 	return true;
 }
@@ -181,14 +223,14 @@ bool Thread::connectToTarget(QString ip, int port,int pro)
 							qDebug()<<"#FINSH#";
 							return true;
 						}
-					qDebug()<<"没有接受到 \"连接成功\" 的信息";
+					qDebug()<<"回复呢但是没有 \"连接成功\" 的信息 ";
 				}
-			qDebug()<<"代理服务器没有回复";
+			qDebug()<<"连接成功但是没有回复";
 			return false;
 		}
 	else
 		{
-			qDebug()<<"263# ERROR:"<<this->target->errorString();
+			qDebug()<<"\n connectToTarget # ERROR: "<<this->target->errorString();
 			return false;
 		}
 	return false;
@@ -198,7 +240,7 @@ bool Thread::fristMutula()
 {
 	QByteArray buf =  this->socket->readAll();
 	QByteArray send;
-	qDebug()<<" buf one : "<<buf;
+//	qDebug()<<" buf one : "<<buf;
 	if( 0x05 == buf[0] )		//简单认证获取第一位是不是 0x05(VER)
 		{
 			send.resize(2);
@@ -226,7 +268,7 @@ bool Thread::secondMutula()
 	send[8] = 0x00;
 	send[9] = 0x00;
 	
-	qDebug()<<" buf two : "<<buf;
+//	qDebug()<<" buf two : "<<buf;
 	Thread::msleep(5);
 	if(0x05 == buf[0])
 		{
@@ -240,15 +282,27 @@ bool Thread::secondMutula()
 				
 				case 0x01:		//ipv4
 					{
-						this->post = 1;	
-						getIP(buf);
+						this->post = IPV4_POST;	
+						
+						QByteArray ip = Analysis::hexToIP(buf);
+						int port = Analysis::hexToPort(buf);
+						
+						this->targetIp = ip;
+						this->targetPort = port;
+						
 						break;
 					}
 					
 				case 0x03:		//domain
 					{
-						this->post = 3;
-						getDomain(buf);
+						this->post = DOMAIN_POST;
+						
+						QByteArray domain = Analysis::hexToDomain(buf);
+						int port = Analysis::hexToPort(buf);
+						
+						this->targetDomain = domain;
+						this->targetPort = port;
+						
 						break;
 					}
 					
@@ -256,27 +310,8 @@ bool Thread::secondMutula()
 					qDebug()<<"223# quit";
 					return false;
 				}
-			if(this->post == 1)
-				{
-					if(!connectToTarget(this->targetIp,this->targetPort))
-						{
-							qDebug()<<"252# quit";
-							return false;
-						}
-				}
-			else if(this->post ==3)
-				{
-					if(!connectToTarget(this->targetDomain,this->targetPort,1))
-						{
-							qDebug()<<"252# quit";
-							return false;
-						}
-				}
-			else
-				{
-					return false;
-				}
 			
+			//如果是udp
 			if(this->style == 3)
 				{
 					if(udpInit())
@@ -291,6 +326,29 @@ bool Thread::secondMutula()
 		{
 			return false;
 		}
+	
+	if(this->post == 1)
+		{
+			if(!connectToTarget(this->targetIp,this->targetPort))
+				{
+					qDebug()<<"252# quit";
+					return false;
+				}
+		}
+	else if(this->post ==3)
+		{
+			if(!connectToTarget(this->targetDomain,this->targetPort,1))
+				{
+					qDebug()<<"252# quit";
+					return false;
+				}
+		}
+	else
+		{
+			return false;
+		}
+	
+	
 	return true;
 }
 
@@ -299,12 +357,12 @@ bool Thread::checkPro(QByteArray buf)
 	switch (buf[1]) {
 		case 0x01:		//TCP
 			{
-				this->style = 1;
+				this->style = TCP_STYLE;
 				break;
 			}
 		case 0x03:		//UDP
 			{
-				this->style = 3;
+				this->style = UDP_STYLE;
 				break;
 			}
 		default:
@@ -314,83 +372,19 @@ bool Thread::checkPro(QByteArray buf)
 	return true;
 }
 
-void Thread::getDomain(QByteArray buf)
-{
-	QByteArray buff;
-	buff.resize(1);
-	buff[0] = buf[4];
-	QString str(buff.toHex());
-	
-	bool ok;
-	int domainLength=str.toInt(&ok,16);
-	QByteArray domain(buf.mid(5,domainLength));	//获取域名
-	QByteArray temp(buf.mid(4+domainLength+1,2));
-	int port = hexToPort(temp);
-	
-	this->targetPort = port;
-	this->targetDomain = domain;
-}
-
-void Thread::getIP(QByteArray buf)
-{
-	QByteArray s,w,l,q;
-	s[0] = buf[4];
-	w[0] = buf[5];
-	l[0] = buf[6];
-	q[0] = buf[7];
-	
-	QString ip = hexToIP(s,w,l,q); //还原成IPV4地址格式
-	
-	QByteArray port = buf.mid(8,2);
-	
-	this->targetIp = ip;
-	this->targetPort = hexToPort(port);
-	qDebug()<<"268#  ip:"<<this->targetIp;
-	qDebug()<<"269#  port:"<<this->targetPort;
-}
-
-QString Thread::hexToIP(QByteArray s, QByteArray w, QByteArray l, QByteArray q)
-{
-	bool ok;	//还原成IPV4地址格式
-	QString ip = QString::number(QString(s.toHex()).toInt(&ok,16)) +"."+
-			QString::number(QString(w.toHex()).toInt(&ok,16)) +"."+
-			QString::number(QString(l.toHex()).toInt(&ok,16)) +"."+
-			QString::number(QString(q.toHex()).toInt(&ok,16));
-	return ip;
-}
-
-int Thread::hexToPort(QByteArray buf)
-{
-	bool ok;
-	return QString(buf.toHex()).toInt(&ok,16);
-}
-
-QByteArray Thread::ipToHex(QString ip)
-{
-	QByteArray buf;
-	buf.resize(4);
-	QStringList list = ip.split(".");
-	if(list.size() != 4)
-		{
-			return "";
-		}
-	for(int i=0;i<list.size();i++)
-		{
-			buf[i] = QString(list.at(i)).toUtf8().toHex()[0];
-		}
-	return buf;
-}
 
 void Thread::leave()
 {
 	if(this->socket != NULL)
 		{
 			this->socket->disconnectFromHost();
+			this->socket->close();
 			this->socket->deleteLater();
 		}
 	if(this->target != NULL)
 		{
 			this->target->disconnectFromHost();
+			this->target->close();
 			this->target->deleteLater();
 		}
 	this->exit();
