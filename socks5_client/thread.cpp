@@ -85,15 +85,11 @@ void Thread::writeToTarget()
 
 void Thread::udpToSource()
 {
-	int readSize = udpClient->bytesAvailable()+1;
-	char *recv = new char[readSize];
+	
 	QHostAddress address;
 	quint16 port;
-	udpClient->readDatagram(recv,readSize,&address,&port);
-	
-	
-	QByteArray buff(recv,readSize);
-//	qDebug()<<"udp recv:"<<buff;
+	QByteArray buff = Udp::read(udpClient,&address,&port);
+	qDebug()<<"udpClient-recv-> "<<buff;
 	
 	QByteArray tempIP = Analysis::ipToHex(this->targetIp);
 	QByteArray tempPort = Analysis::portToHex(this->targetPort);
@@ -113,61 +109,56 @@ void Thread::udpToSource()
 	send[9] = tempPort[1];
 	*/
 	send = this->token + buff;
-	qDebug()<<"result "<<send;
-	udpServer->writeDatagram(send,QHostAddress(this->ClientIP),(quint16)this->ClientudpPort);
-	delete recv;
-	recv = NULL;
+	qDebug()<<"udpClient-send-> "<<send;
+//	udpServer->writeDatagram(send,QHostAddress(this->ClientIP),(quint16)this->ClientudpPort);
+	qDebug()<<" \n\n    write size:   "<<Udp::write(udpServer,send,QHostAddress(ClientIP),(quint16)ClientudpPort);
+	
+	qDebug()<<"address "<<this->ClientIP;
+	qDebug()<<"port "<<this->ClientudpPort;
 }
 
 void Thread::udpToTarget()
 {
-	int readSize = udpServer->bytesAvailable() + 1;
-	qDebug()<<"UDP size "<<readSize;
-	char *recv = new char[readSize];
-		
-	
-	
 	QHostAddress address;	
 	quint16 port;
-	udpServer->readDatagram(recv,readSize,&address,&port);  //用来接收客户端的数据，解析后由代理服务器发给目标
-	
-	QByteArray buff(recv,readSize);
+//	this->ClientudpPort = port;
+//	this->ClientIP		= address.toString();
+	QByteArray buff = Udp::read(udpServer,&address,&port);	     //用来接收客户端的数据，解析后由代理服务器发给目标
+//	qDebug()<<"udpServer-recv-> "<<buff;
 	
 	int allLength = Analysis::hexAllLength(buff);	//判断目标信息部分总长提取分离目标信息部分和数据部分
 	this->targetPort =  Analysis::hexToPort(buff.mid(0,allLength+1));
 	this->token = buff.mid(0,allLength);
 	QByteArray tarIP;
+	
 	if(0x01 == buff[3])		//目标ip
 		{
+			
 			tarIP =  Analysis::hexToIP(buff);
 			this->targetIp = QString(tarIP);
-
-			udpClient->writeDatagram(buff.mid(allLength+1,buff.size()),QHostAddress(QString(tarIP)),(quint16)targetPort);
+			
 		}
 	else	if(0x03 == buff[3])		//目标域名
 		{
+			
 			 tarIP = Analysis::hexToDomain(buff);
-			 QHostInfo info = QHostInfo::fromName(tarIP);
-			 this->targetIp = QString(info.addresses().first().toString());
-			 udpClient->writeDatagram(buff.mid(allLength+1,buff.size()),info.addresses().first(),(quint16)targetPort);
+			 this->targetIp = Analysis::domainToIp(tarIP);
+			 
 		}
 	else 
 		{
 			qDebug()<<"error # 143  udp";
 			return;
 		}
-
+	QByteArray send(buff.mid(allLength+1,buff.size()-allLength));
+//	qDebug()<<"tarIP "<<tarIP;
+//	qDebug()<<"udpClient-send-> "<<send;
 	
-	delete recv;
-	recv = NULL;
-	
+	Udp::write(udpClient,send,QHostAddress(QString(tarIP)),(quint16)targetPort);
 }
 
 bool Thread::udpInit()
 {
-	this->ClientIP = this->targetIp;
-	this->ClientudpPort = this->targetPort;
-	
 	QByteArray send;
 	send.resize(8);
 	send[0] = 0x05;

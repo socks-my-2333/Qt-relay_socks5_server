@@ -12,6 +12,7 @@
 #include <QObject>
 #include <QByteArray>
 #include <QStringList>
+#include <QHostInfo>
 
 class Analysis : public QObject
 {
@@ -28,7 +29,7 @@ public slots:
 	static int hexAllLength(QByteArray buf);
 	static QByteArray ipToHex(QString ip);
 	static QByteArray portToHex(int port);
-	
+	static QString	domainToIp(QString doamin);
 };
 
 #endif // ANALYSIS_H

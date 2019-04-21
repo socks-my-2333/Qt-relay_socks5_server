@@ -75,3 +75,9 @@ QByteArray Analysis::portToHex(int port)
 	
 	return send;
 }
+
+QString Analysis::domainToIp(QString doamin)
+{
+	QHostInfo info = QHostInfo::fromName(doamin);
+	return QString(info.addresses().first().toString());
+}

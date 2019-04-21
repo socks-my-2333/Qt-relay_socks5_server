@@ -11,11 +11,13 @@
 #include <QTime>
 #include <QUdpSocket>
 #include "analysis.h"
+#include "udp.h"
 
 #define TCP_STYLE 1
 #define UDP_STYLE 3
 #define IPV4_POST 1
 #define DOMAIN_POST 3
+
 
 class Thread : public QThread
 {

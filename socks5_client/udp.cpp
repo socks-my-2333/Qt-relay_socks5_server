@@ -1,4 +1,5 @@
 #include "udp.h"
+#include <QDebug>
 
 Udp::Udp(QObject *parent) : QObject(parent)
 {
@@ -13,7 +14,17 @@ quint64 Udp::write(QUdpSocket *socket, const QByteArray &datagram, const QHostAd
 
 QByteArray Udp::read(QUdpSocket *socket, QHostAddress *address, quint16 *port)
 {
-	char buf[1024] = {0};
-	socket->readDatagram(buf,20,address,port);
-	return QByteArray(buf,20);
+	if(address->toString().isEmpty())
+		{
+			address->setAddress("127.0.0.1");
+		}
+	
+	int size = socket->bytesAvailable();
+	char *buf = new char[size];
+	
+	socket->readDatagram(buf,size,address,port);
+	QByteArray retn(buf,size);
+	delete[] buf;
+	buf = NULL;
+	return retn;
 }
