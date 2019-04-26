@@ -111,7 +111,7 @@ void Thread::udpToSource()
 	send = this->token + buff;
 	qDebug()<<"udpClient-send-> "<<send;
 //	udpServer->writeDatagram(send,QHostAddress(this->ClientIP),(quint16)this->ClientudpPort);
-	qDebug()<<" \n\n    write size:   "<<Udp::write(udpServer,send,QHostAddress(ClientIP),(quint16)ClientudpPort);
+	qDebug()<<" \n\n    write size:   "<<Udp::write(udpServer,send,QHostAddress("127.0.0.1"),(quint16)ClientudpPort);
 	
 	qDebug()<<"address "<<this->ClientIP;
 	qDebug()<<"port "<<this->ClientudpPort;
@@ -121,14 +121,16 @@ void Thread::udpToTarget()
 {
 	QHostAddress address;	
 	quint16 port;
-//	this->ClientudpPort = port;
-//	this->ClientIP		= address.toString();
+	
+	this->ClientIP		= address.toString();
+	this->clientAddres =address;
 	QByteArray buff = Udp::read(udpServer,&address,&port);	     //用来接收客户端的数据，解析后由代理服务器发给目标
 //	qDebug()<<"udpServer-recv-> "<<buff;
-	
+	this->ClientudpPort = port;
+	this->ClientIP = address.toString();
 	int allLength = Analysis::hexAllLength(buff);	//判断目标信息部分总长提取分离目标信息部分和数据部分
 	this->targetPort =  Analysis::hexToPort(buff.mid(0,allLength+1));
-	this->token = buff.mid(0,allLength);
+	this->token = buff.mid(0,allLength+1);
 	QByteArray tarIP;
 	
 	if(0x01 == buff[3])		//目标ip

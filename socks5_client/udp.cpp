@@ -16,7 +16,7 @@ QByteArray Udp::read(QUdpSocket *socket, QHostAddress *address, quint16 *port)
 {
 	if(address->toString().isEmpty())
 		{
-			address->setAddress("127.0.0.1");
+			address->setAddress(QHostAddress::AnyIPv4);
 		}
 	
 	int size = socket->bytesAvailable();

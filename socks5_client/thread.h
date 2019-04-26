@@ -35,15 +35,14 @@ private:
 	QUdpSocket *udpServer = NULL;
 	QUdpSocket *udpClient = NULL;
 	
-	QString sourceIp;	//客户端ip
 	QString targetIp;	//目标IP
-	
 	QString targetDomain;	//目标域名
 	int targetPort = 0;		//目标端口
 	
 	int ServerudpPort = 0;		//本地监听的端口
 	int ClientudpPort = 0;		//socks5客户端端口
 	QString ClientIP;			//socks5客户IP
+	QHostAddress clientAddres;
 	
 	int post = 0;			//协议类型
 	int style = 0;			//通信方式
