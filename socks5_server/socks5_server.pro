@@ -18,8 +18,16 @@ DEFINES += QT_DEPRECATED_WARNINGS
 SOURCES += \
         main.cpp \
     server.cpp \
-    thread.cpp
+    thread.cpp \
+    blockturn.cpp \
+    analysis.cpp \
+    udptask.cpp \
+    udp.cpp
 
 HEADERS += \
     server.h \
-    thread.h
+    thread.h \
+    blockturn.h \
+    analysis.h \
+    udptask.h \
+    udp.h

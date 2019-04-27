@@ -1,10 +1,10 @@
 #include "analysis.h"
-
+/*
 Analysis::Analysis(QObject *parent) : QObject(parent)
 {
 	
 }
-
+*/
 
 
 QByteArray Analysis::hexToIP(QByteArray buf)

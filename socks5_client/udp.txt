@@ -1,0 +1,118 @@
+qDebug()<<"this is udp";
+					this->flagIp = this->socket->peerAddress().toString();
+					//获取一个随机的端口
+					udpSocket->bind();
+					int localPort = udpSocket->localPort();	//获取UDP绑定的随机端口号
+					QByteArray bytePort = QString::number(localPort).toLatin1().toHex();
+					
+					if(localPort>255)
+						{
+							send[8] = bytePort[0];
+							send[9] = bytePort[1];
+						}
+					else
+						{
+							send[9] = bytePort[0];
+						}
+					QHostAddress address;
+					foreach(const QHostAddress& hostAddress,QNetworkInterface::allAddresses())
+						{
+							
+							if ( hostAddress != QHostAddress::LocalHost && hostAddress.toIPv4Address() )
+								{
+									address = hostAddress;
+								}
+							
+						}
+					
+					QStringList ipList =  address.toString().split(".");
+					qDebug()<<"ipList : "<<ipList;
+					if(ipList.size() != 4)
+						{
+							return false;
+						}
+					
+					//填充为我们的ip地址
+					qDebug()<<"4 .......:"<<QString(ipList.at(0)).toLatin1()[0];
+					send[4] = QString(ipList.at(0)).toLatin1().toHex()[0];
+					send[5] = QString(ipList.at(1)).toLatin1().toHex()[0];
+					send[6] = QString(ipList.at(2)).toLatin1().toHex()[0];
+					send[7] = QString(ipList.at(3)).toLatin1().toHex()[0];
+					qDebug()<<"UDP back data:"<<send;
+					//	return;
+
+
+
+/*****************************************************************************************************/
+
+
+
+
+
+	if(isUdp == true)
+		{
+			QHostAddress address;
+			QByteArray buff;
+			this->udpSocket->readDatagram(buff.data(),buff.size(),&address);
+			
+			if(address.toString() == flagIp)	//从客户端发出的UDP包
+				{
+					switch (buff[3]) {
+						case 0x01:
+						{
+							QByteArray s,w,l,q;
+							s[0] = buff[4];
+							w[0] = buff[5];
+							l[0] = buff[6];
+							q[0] = buff[7];
+							
+							QString ip = hexToIP(s,w,l,q); //还原成IPV4地址格式
+							
+							QByteArray port = buff.mid(8,2);
+							
+							this->targetIp = ip;
+							this->targetPort = hexToPort(port);
+							
+							udpSocket->writeDatagram(buff.mid(10,buff.size()-9),QHostAddress(this->targetIp),this->targetPort);
+							break;
+						}
+						case 0x03:
+						{
+							QByteArray bufff;
+							bufff.resize(1);
+							bufff[0] = buff[4];
+							QString str(bufff.toHex());
+							
+							bool ok;
+							int domainLength=str.toInt(&ok,16);
+							QByteArray domain(buff.mid(5,domainLength));	//获取域名
+							
+							QByteArray temp(buff.mid(4+domainLength+1,2));
+							int port = hexToPort(temp);
+							
+							this->targetPort = port;
+							qDebug()<<"131#  port:"<<this->targetPort;
+							QHostInfo info = QHostInfo::fromName(domain);
+							if(!info.addresses().isEmpty())
+								{
+									QHostAddress addres = info.addresses().first();
+									this->targetIp = addres.toString();
+									udpSocket->writeDatagram(buff.mid(6+domainLength+1,buff.size()-4+domainLength+1),QHostAddress(this->targetIp),this->targetPort);
+								}
+							else
+								{
+									leave();
+									return;
+								}
+							
+							break;
+						}
+						default:
+							break;
+						}
+				}
+			else		//从服务端发出的UDP包
+				{
+					
+				}
+		}

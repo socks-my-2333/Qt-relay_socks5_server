@@ -5,8 +5,6 @@
 *
 *    这个类用来拆分SOCKS5交互过程中的信息
 *
-*
-*
 */
 
 #include <QObject>
@@ -14,11 +12,11 @@
 #include <QStringList>
 #include <QHostInfo>
 
-class Analysis : public QObject
+class Analysis 
 {
-	Q_OBJECT
+//	Q_OBJECT
 public:
-	explicit Analysis(QObject *parent = nullptr);
+//	explicit Analysis(QObject *parent = nullptr);
 	
 signals:
 	

@@ -12,6 +12,7 @@
 #include <QUdpSocket>
 #include "analysis.h"
 #include "udp.h"
+#include "factory.h"
 
 #define TCP_STYLE 1
 #define UDP_STYLE 3
@@ -30,32 +31,28 @@ private:
 	int socketID = 0;
 	
 	//分别是和目标，源通信的socket;
-	QTcpSocket *socket =NULL;
-	QTcpSocket *target = NULL;
-	QUdpSocket *udpServer = NULL;
-	QUdpSocket *udpClient = NULL;
+	QTcpSocket *socket =nullptr;
+	QTcpSocket *target = nullptr;
 	
+	QUdpSocket *udpServer = nullptr;
+	QUdpSocket *udpClient = nullptr;
+	
+	QString serverIP = "";		//服务器ip
 	QString targetIp;	//目标IP
 	QString targetDomain;	//目标域名
-	int targetPort = 0;		//目标端口
-	
-	int ServerudpPort = 0;		//本地监听的端口
-	int ClientudpPort = 0;		//socks5客户端端口
 	QString ClientIP;			//socks5客户IP
-	QHostAddress clientAddres;
 	
+	int dataSum =0;		//记录接受的数据包
+	int	   serverPort = 0;			//服务器端口
+	int targetPort = 0;		//目标端口
+	int ServerudpPort = 0;		//本地监听的端口				1080
+	int ClientudpPort = 0;		//socks5客户端端口			连接的客户端口
 	int post = 0;			//协议类型
 	int style = 0;			//通信方式
 	
-	bool isUdp = false;		//udp是否开始转发
-	
-	QString serverIP = "";		//服务器ip
-	int	   serverPort = 0;			//服务器端口
-	
-	int dataSum =0;		//记录接受的数据包
-	
-	QByteArray token;
-	
+	QHostAddress clientAddres;
+	QByteArray token;		//记录udp转发的头
+	QByteArray afterUse;
 signals:
 	void sendSize(int size);
 private slots:	

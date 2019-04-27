@@ -3,107 +3,124 @@
 
 Thread::Thread(int id, QObject *parent) : QThread(parent)
 {
-    this->socketID = id;
+	socketID = id;
 }
 
 void Thread::run()
 {
-    this->socket = new QTcpSocket();
-    this->target = new QTcpSocket();
-    qDebug()<<"is running";
-    if(!this->socket->setSocketDescriptor(this->socketID))
-    {
-        qDebug()<<"fail setSocketDescriptor error: "<<socket->errorString();
-    }
-    if(!this->socket->waitForReadyRead(5000))
-    {
-        return;
-    }
-    else
-    {
-        QString fristRead =  this->socket->readAll();
-        qDebug()<<"nor problem: "<<fristRead;
-        QStringList fristList = fristRead.split("#");
-        if(fristList.size() != 3)
-        {
-            //清洁函数
-            leave();
-            return;
-        }
+	socket = new QTcpSocket();
+	target = new QTcpSocket();
+	
+	qDebug()<<"is running";
+	if(!socket->setSocketDescriptor(socketID))
+		{
+			qDebug()<<"fail setSocketDescriptor error: "<<socket->errorString();
+		}
+	
+	
+	if(!approve())
+		{
+			leave();
+			return;
+		}
+	connect(socket,&QTcpSocket::readyRead,this,&Thread::writeToTarget,Qt::DirectConnection);
+	connect(socket,&QTcpSocket::disconnected,this,&Thread::leave,Qt::DirectConnection);
+	connect(target,&QTcpSocket::disconnected,this,&Thread::leave,Qt::DirectConnection);
+	connect(target,&QTcpSocket::readyRead,this,&Thread::writeToSource,Qt::DirectConnection);
+	socket->write("#FINSH#");
+	
+	exec();
+}
 
-        this->targetIP = fristList.at(1);
-        this->targetPort = QString(fristList.at(2)).toInt();
-	   
-	    if(fristList.at(0) == "DOMAIN")
-		   {
-			   QHostInfo info = QHostInfo::fromName(targetIP);
-			   if(!info.addresses().isEmpty())
-				   {
-					   QHostAddress addres = info.addresses().first();
-					   this->targetIP = addres.toString();
-				   }
-			   else
-				   {
-					   leave();
-					   return;
-				   }
-		   }
-	   
-        this->target->connectToHost(QHostAddress(this->targetIP),this->targetPort);
-        if(!this->target->waitForConnected(2000))
-        {
-            leave();
-            return;
-        }
-        qDebug()<<"connect to:  "<<this->targetIP<<"  "<<this->targetPort;
+bool Thread::approve()
+{
+	qDebug()<<"approve";
+	if(!socket->waitForReadyRead(5000))
+		{
+			return false;
+		}
+	else
+		{
+			QString fristRead =  socket->readAll();
+			
+			if(!setTargetInfo(fristRead))
+				{
+					return false;
+				}
+			
+			target->connectToHost(QHostAddress(targetIP),targetPort);
+			
+			if(!target->waitForConnected(2000))
+				{
+					return false;
+				}
+		}
+	return true;
+}
 
-        connect(this->socket,&QTcpSocket::readyRead,this,&Thread::writeToTarget,Qt::DirectConnection);
-        connect(this->socket,&QTcpSocket::disconnected,this,&Thread::leave,Qt::DirectConnection);
-        connect(this->target,&QTcpSocket::disconnected,this,&Thread::leave,Qt::DirectConnection);
-        connect(this->target,&QTcpSocket::readyRead,this,&Thread::writeToSource,Qt::DirectConnection);
-        this->socket->write("#FINSH#");
-    }
-
-    this->exec();
+bool Thread::setTargetInfo(QString fristRead)
+{
+	qDebug()<<"setTargetInfo";
+	TargetInfo tarinfo;
+	if(Analysis::getTargetDomain(fristRead,tarinfo))
+		{
+			return false;
+		}
+	
+	targetIP = tarinfo.ip;
+	targetPort = tarinfo.port;
+	
+	QHostInfo info = QHostInfo::fromName(targetIP);
+	if(!info.addresses().isEmpty())
+		{
+			QHostAddress addres = info.addresses().first();
+			targetIP = addres.toString();		//设置目标ip
+			return true;
+		}
+	else
+		{
+			return false;
+		}
+	return false;
 }
 
 void Thread::writeToTarget()
 {
-   
-    QByteArray buffer = this->socket->readAll();
-    for(int i =0;i<buffer.size();i++)
-	    {
-		    buffer[i] = buffer[i]^1611;
-	    }
-    this->target->write(buffer);
+	
+	QByteArray buffer = socket->readAll();
+	for(int i =0;i<buffer.size();i++)
+		{
+			buffer[i] = buffer[i]^1611;
+		}
+	target->write(buffer);
 }
 
 void Thread::writeToSource()
 {
-    
-    QByteArray buffer = this->target->readAll();
-    for(int i =0;i<buffer.size();i++)
-	    {
-		    buffer[i] = buffer[i]^1611;
-	    }
-    this->socket->write(buffer);
+	
+	QByteArray buffer = target->readAll();
+	for(int i =0;i<buffer.size();i++)
+		{
+			buffer[i] = buffer[i]^1611;
+		}
+	socket->write(buffer);
 }
 
 void Thread::leave()
 {
-    if(this->socket != NULL)
-    {
-        qDebug()<<"delete socket";
-        this->socket->disconnectFromHost();
-        this->socket->deleteLater();
-        this->socket = NULL;
-    }
-    if(this->target != NULL)
-    {
-        qDebug()<<"delete target";
-        this->target->disconnectFromHost();
-        this->target->deleteLater();
-        this->socket = NULL;
-    }
-    this->exit();
+	if(socket != nullptr)
+		{
+			qDebug()<<"delete socket";
+			socket->disconnectFromHost();
+			socket->close();
+			socket->deleteLater();
+		}
+	if(target != nullptr)
+		{
+			qDebug()<<"delete target";
+			target->disconnectFromHost();
+			target->close();
+			target->deleteLater();
+		}
+	exit();
 }
