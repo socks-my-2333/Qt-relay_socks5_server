@@ -10,21 +10,22 @@
 #include <QNetworkInterface>
 #include <QTime>
 #include <QUdpSocket>
+#include <QCryptographicHash>
 #include "analysis.h"
 #include "udp.h"
-#include "factory.h"
+#include "qaeswrap.h"
 
 #define TCP_STYLE 1
 #define UDP_STYLE 3
 #define IPV4_POST 1
 #define DOMAIN_POST 3
 
-
+enum ENCODE_TYPE{NONE,XOR,AES};
 class Thread : public QThread
 {
 	Q_OBJECT
 public:
-	explicit Thread(int id ,QString ip = "127.0.0.1",int port = 6666,QObject *parent = nullptr);
+	explicit Thread(int id ,ENCODE_TYPE type,QString ip = "127.0.0.1",int port = 6666,QObject *parent = nullptr);
 	~Thread();
 	
 private:
@@ -53,6 +54,12 @@ private:
 	QHostAddress clientAddres;
 	QByteArray token;		//记录udp转发的头
 	QByteArray afterUse;
+	
+	QByteArray key = "1611";
+	
+	bool targetStop = false;
+	bool socketStop = false;
+	ENCODE_TYPE encode_type;
 signals:
 	void sendSize(int size);
 private slots:	
@@ -67,6 +74,8 @@ private slots:
 	bool fristMutula();
 	bool secondMutula();
 	bool checkPro(QByteArray buf);
+	
+	bool checkConnection();
 	
 public slots:
 	void run();		//线程开始函数

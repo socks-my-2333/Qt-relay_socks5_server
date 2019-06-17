@@ -1,25 +1,29 @@
 #include "mainwindow.h"
 #include <QApplication>
 #include "server.h"
-#include "udp.h"
 #include <QUdpSocket>
 #include <QDebug>
 #include "windows.h"
+//#include "qaeswrap.h"
 
 int main(int argc, char *argv[])
 {
 	QApplication a(argc, argv);
-	/*
-	QUdpSocket *socket = new QUdpSocket();
-	socket->bind(4444);
+
 	
-	QObject::connect(socket,&QUdpSocket::readyRead,[=](){
-			QHostAddress add;
-			quint16 p;
-			qDebug()<<"recv: "<<Udp::read(socket,&add,&p);
-		});
+	/*
+	QByteArray key = "1234567891234567";
+	QAesWrap aes(key,key,QAesWrap::AesBit::AES_128);
+	QByteArray plainText = "这个中文什么都没0有     ";
+	
+	qDebug()<<"加密前:"<<plainText;
+	QByteArray encodedText = aes.encrypt(plainText,QAesWrap::AesMode::AES_ECB);
+	qDebug()<<"加密后:"<<encodedText;
+	QByteArray decodedText = aes.decrypt(encodedText,QAesWrap::AesMode::AES_ECB);
+	qDebug()<<"解密后:"<<decodedText;
 	*/
-//	Udp::write(socket,"this is test",QHostAddress("127.0.0.1"),6666);
+	
+	
 	MainWindow w;
 	w.show();
 	return a.exec();

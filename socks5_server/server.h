@@ -10,12 +10,12 @@ class Server : public QTcpServer
 	Q_OBJECT
 public:
 	explicit Server(QObject *parent = nullptr);
-	
+	Thread::encode type;
 signals:
 	
 public slots:
     void incomingConnection(qintptr id);
-	bool startServer(int port=0);
+	bool startServer(int port,Thread::encode code);
 	void stopServer();
 };
 

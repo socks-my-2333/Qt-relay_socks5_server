@@ -1,6 +1,6 @@
 #include "thread.h"
 #include <QDebug>
-Thread::Thread(int id, QString ip, int port, QObject *parent) : QThread(parent)
+Thread::Thread(int id, ENCODE_TYPE type, QString ip, int port, QObject *parent) : QThread(parent)
 {
 	socketID = id;
 	serverIP = ip;
@@ -17,6 +17,8 @@ Thread::Thread(int id, QString ip, int port, QObject *parent) : QThread(parent)
 	afterUse[7] = 0x00;
 	afterUse[8] = 0x00;
 	afterUse[9] = 0x00;
+	this->encode_type = type;
+	
 }
 
 Thread::~Thread()
@@ -27,8 +29,12 @@ Thread::~Thread()
 void Thread::run()
 {
 	
-	target = Factory::createTcpSocket();
-	socket = Factory::createTcpSocket();
+	key = QCryptographicHash::hash(key,QCryptographicHash::Md5);
+//	qDebug()<<"key "<<key;
+	
+	target = new QTcpSocket();	//用于跟中继服务器通信
+	
+	socket = new QTcpSocket();	//用于跟客户连接(socks5)
 	
 	if(!socket->setSocketDescriptor(socketID))
 		{
@@ -36,7 +42,7 @@ void Thread::run()
 		}
 	
 	
-	if(socket->waitForReadyRead())	//第一次交互
+	if(socket->waitForReadyRead())	//第一次交互		socks5
 		{
 			if(!fristMutula())
 				{
@@ -53,9 +59,10 @@ void Thread::run()
 					return;
 				}
 		}
-	
+	//认证通过
 	connect(socket,&QTcpSocket::disconnected,this,&Thread::leave,Qt::DirectConnection);
 	connect(target,&QTcpSocket::disconnected,this,&Thread::leave,Qt::DirectConnection);
+	
 	connect(socket,&QTcpSocket::readyRead,this,&Thread::writeToTarget,Qt::DirectConnection);	
 	connect(target,&QTcpSocket::readyRead,this,&Thread::writeToSource,Qt::DirectConnection);
 	if(style == UDP_STYLE)
@@ -64,19 +71,62 @@ void Thread::run()
 			connect(udpClient,&QUdpSocket::readyRead,this,&Thread::udpToSource,Qt::DirectConnection);
 		}
 	qDebug()<<"start";
+
 	exec();
 }
 
 void Thread::writeToSource()
 {
-//	qDebug()<<"write to source:";
-	QByteArray buffer = target->readAll();
+	qDebug()<<"to writeToSource";
+	if(!checkConnection())
+		{
+			qDebug()<<"to writeToSource return; ";
+			return;
+		}
+		
+	
+	QByteArray buffer;
+	buffer.clear();
+	
+	char *data = new char[65535];
+	while(true)
+		{
+			int readSize = target->read(data,65535);
+			if(readSize < 1)
+				{
+					break;
+				}
+			QByteArray temp(data,readSize);
+			buffer += temp;
+			memset(data,0,65535);
+		}
+	delete[] data;
+	
+	
 	
 	emit sendSize(buffer.size());
-	
-	for(int i =0;i<buffer.size();i++)
-		{
-			buffer[i] = buffer[i]^ 1611;
+	switch (this->encode_type) {
+		case ENCODE_TYPE::NONE:
+			{
+				break;
+			}
+		case ENCODE_TYPE::XOR:
+			{
+				
+				for(int i =0;i<buffer.size();i++)
+					{
+						buffer[i] = buffer[i] ^ 1611;
+					}
+				
+				break;
+			}
+		case ENCODE_TYPE::AES:
+			{
+				QAesWrap aes(key,key,QAesWrap::AesBit::AES_128);
+				QByteArray rec = aes.encrypt(buffer,QAesWrap::AesMode::AES_ECB);
+				buffer = rec;
+				break;
+			}
 		}
 	
 	socket->write(buffer);
@@ -84,25 +134,75 @@ void Thread::writeToSource()
 
 void Thread::writeToTarget()
 {
-//	qDebug()<<"write to target:";
-	QByteArray buffer = socket->readAll();
 	
-	for(int i =0;i<buffer.size();i++)
+	qDebug()<<"to writeToTarget";
+	if(!checkConnection())
 		{
-			buffer[i] = buffer[i]^ 1611;
+			qDebug()<<"to writeToTarget return; ";
+			return;
+		}
+	QByteArray buffer;
+	buffer.clear();
+	
+	char *data = new char[65535];
+	while(true)
+		{
+			int readSize = socket->read(data,65535);
+			if(readSize < 1)
+				{
+					break;
+				}
+			QByteArray temp(data,readSize);
+			buffer += temp;
+			memset(data,0,65535);
+		}
+	delete[] data;
+
+	QTime time;
+	time.start();
+	
+	
+	switch (this->encode_type) {
+		case ENCODE_TYPE::NONE:
+			{
+				break;
+			}
+		case ENCODE_TYPE::XOR:
+			{
+				
+				for(int i =0;i<buffer.size();i++)
+					{
+						buffer[i] = buffer[i] ^ 1611;
+					}
+				
+				break;
+			}
+		case ENCODE_TYPE::AES:
+			{
+				QAesWrap aes(key,key,QAesWrap::AesBit::AES_128);
+				QByteArray rec = aes.encrypt(buffer,QAesWrap::AesMode::AES_ECB);
+				buffer = rec;
+				break;
+			}
 		}
 	
+	
+
+	qDebug()<<"加密用时 "<<time.elapsed();
 	target->write(buffer);
+	
+	
 }
 
 void Thread::udpToSource()
 {
 	
-//	QHostAddress address;		//新建栈变量用于接受信息
-//	quint16 port;	
 	
-	QByteArray buff = Udp::read(udpClient,nullptr,nullptr);
+	QHostAddress address;		//新建栈变量用于接受信息
+	quint16 port;	
 	
+	QByteArray buff = Udp::read(udpClient,&address,&port);
+	qDebug()<<"udp buff "<<buff;
 	QByteArray send;
 	send = token + buff;
 
@@ -116,7 +216,7 @@ void Thread::udpToTarget()
 	quint16 port;
 
 	QByteArray buff = Udp::read(udpServer,&address,&port);	     //用来接收客户端的数据，解析后由代理服务器发给目标
-
+	
 	ClientudpPort = port;
 	ClientIP = address.toString();
 	clientAddres =address;
@@ -154,10 +254,10 @@ bool Thread::udpInit()
 {
 	QByteArray send = afterUse;
 	
-	udpServer = Factory::createUdpSocket();
+	udpServer = new QUdpSocket();
 	udpServer->bind();
 	
-	udpClient = Factory::createUdpSocket();
+	udpClient = new QUdpSocket();
 	udpClient->bind();
 	
 	serverPort = udpServer->localPort();
@@ -172,13 +272,17 @@ bool Thread::udpInit()
 
 bool Thread::connectToTarget(QString ip, int port,int pro)
 {
+	if(ip == "clients1.google.com")
+		{
+			return false;
+		}
 	target->connectToHost(QHostAddress(serverIP),static_cast<quint16>(serverPort));		//连接到服务器
 	if(target->waitForConnected())	//连接成功服务器
 		{
 			QString res;
 			if(pro==0)		//如果是ip
 				{
-					res = QString("IPV4")+"#"+ip+"#"+QString::number(port);
+					res = QString("IPV4")+"#"+ip+"#"+QString::number(port);		//发送给我们的中继服务器
 				}	
 			else				//如果是域名
 				{
@@ -275,6 +379,7 @@ bool Thread::secondMutula()
 			//如果是udp
 			if(style == UDP_STYLE)
 				{
+				//	return false;
 					if(udpInit())
 						{
 							return true;
@@ -332,6 +437,15 @@ bool Thread::checkPro(QByteArray buf)
 	return true;
 }
 
+bool Thread::checkConnection()
+{
+	if(socket != nullptr && target != nullptr)
+		{
+			return true;
+		}
+	return false;
+}
+
 
 void Thread::leave()
 {
@@ -347,17 +461,20 @@ void Thread::leave()
 			udpClient->close();
 			udpClient->deleteLater();
 		}
-	if(socket != nullptr)
+	if(socketStop == false )
 		{
 			socket->disconnectFromHost();
 			socket->close();
 			socket->deleteLater();
+			socketStop = true;
 		}
-	if(target != nullptr)
+	if(targetStop == false)
 		{
 			target->disconnectFromHost();
 			target->close();
 			target->deleteLater();
+			targetStop = true;
 		}
 	exit();
 }
+

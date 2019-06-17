@@ -3,13 +3,16 @@
 
 Server::Server(QObject *parent) : QTcpServer(parent)
 {
+	timer = new QTimer();
+	timer->start(1000);
+	connect(timer,&QTimer::timeout,this,&Server::getSpeed);
 	
 }
 
 void Server::incomingConnection(int id)
 {
-	Thread *t = new Thread(id,this->server_ip,this->server_port);
-//	connect(t,&Thread::sendSize,this,&Server::getSize,Qt::AutoConnection);
+	Thread *t = new Thread(id,this->type,this->server_ip,this->server_port);
+	connect(t,&Thread::sendSize,this,&Server::getSize,Qt::AutoConnection);
 	t->start();
 }
 
@@ -33,13 +36,26 @@ void Server::stopServer()
 
 void Server::getSize(int size)
 {
-	emit sendSize(size);
+	
+	this->lastSize = this->recSize;
+	this->recSize += size;
+//	emit sendSize(size);
 }
 
-void Server::setInfo(QString ip, int port)
+void Server::setInfo(QString ip, int port,ENCODE_TYPE typ)
 {
 	this->server_ip = ip;
 	this->server_port = port;
+	this->type = typ;
 	qDebug()<<"ip "<<ip;
 	qDebug()<<"port "<<port;
+	qDebug()<<"type "<<typ;
+}
+
+void Server::getSpeed()
+{
+	emit sendSize(recSize);
+	timer->start(1000);
+	int speed = recSize - lastSize;
+	emit sendSpeed(speed);
 }

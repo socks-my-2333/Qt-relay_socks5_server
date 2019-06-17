@@ -7,13 +7,16 @@
 #include <QStringList>
 #include <QHostAddress>
 #include <QHostInfo>
+#include <QCryptographicHash>
 #include "analysis.h"
+#include "qaeswrap.h"
 
 class Thread : public QThread
 {
 	Q_OBJECT
 public:
-	explicit Thread(int id ,QObject *parent = nullptr);
+	enum encode{NONE,XOR,AES};
+	explicit Thread(int id ,encode code,QObject *parent = nullptr);
 	struct TargetInfo
 	{
 		QString ip;
@@ -26,13 +29,22 @@ public slots:
 	void run();
 private:
 	int socketID = 0;
-	QTcpSocket *socket = NULL;
-	QTcpSocket *target = NULL;
-    bool isReady = false;
-    
-	QString targetIP;		//目标服务器ip
 	int	   targetPort = 0;	//目标服务器端口
 	int	   dataSum = 0;
+	
+	QTcpSocket *socket = NULL;
+	QTcpSocket *target = NULL;
+	
+    
+	QString targetIP;		//目标服务器ip
+
+	
+	QByteArray key = "1611";
+	
+	bool isReady = false;
+	bool socketStop = false;
+	bool targetStop = false;
+	encode type;
 private slots:
 	bool approve();
 	

@@ -1,15 +1,20 @@
 #include "thread.h"
 #include <QDebug>
 
-Thread::Thread(int id, QObject *parent) : QThread(parent)
+Thread::Thread(int id, encode code, QObject *parent) : QThread(parent)
 {
 	socketID = id;
+	this->type = code;
+	
 }
 
 void Thread::run()
 {
-	socket = new QTcpSocket();
-	target = new QTcpSocket();
+
+	key = QCryptographicHash::hash(key,QCryptographicHash::Md5);
+	
+	socket = new QTcpSocket();		//跟客户通信
+	target = new QTcpSocket();		//跟目标通信,,比如说Google
 	
 	qDebug()<<"is running";
 	if(!socket->setSocketDescriptor(socketID))
@@ -61,7 +66,7 @@ bool Thread::approve()
 bool Thread::setTargetInfo(QString fristRead)
 {
 	qDebug()<<"setTargetInfo";
-	TargetInfo tarinfo;
+	Analysis::TargetInfo tarinfo;
 	if(Analysis::getTargetDomain(fristRead,tarinfo))
 		{
 			return false;
@@ -87,40 +92,116 @@ bool Thread::setTargetInfo(QString fristRead)
 void Thread::writeToTarget()
 {
 	
-	QByteArray buffer = socket->readAll();
-	for(int i =0;i<buffer.size();i++)
+	QByteArray buffer;
+	buffer.clear();
+	
+	char *data = new char[65535];
+	while(true)
 		{
-			buffer[i] = buffer[i]^1611;
+			int readSize = socket->read(data,65535);
+			if(readSize < 1)
+				{
+					break;
+				}
+			QByteArray temp(data,readSize);
+			buffer += temp;
+			memset(data,0,65535);
 		}
+	delete[] data;
+	
+	switch (type) {
+		case NONE:
+			{
+			break;
+			}
+		case XOR:
+			{
+			for(int i = 0;i<buffer.size();i++)
+				{
+					buffer[i] = buffer[i] ^ 1611;
+				}
+			break;
+		}
+		case AES:
+			{
+			QAesWrap aes(key,key,QAesWrap::AesBit::AES_128);
+			QByteArray rec = aes.decrypt(buffer,QAesWrap::AesMode::AES_ECB);
+			break;
+			}
+		default:
+			{
+			break;
+			}
+		}
+
+
 	target->write(buffer);
 }
 
 void Thread::writeToSource()
 {
 	
-	QByteArray buffer = target->readAll();
-	for(int i =0;i<buffer.size();i++)
+	QByteArray buffer;
+	buffer.clear();
+	
+	char *data = new char[65535];
+	while(true)
 		{
-			buffer[i] = buffer[i]^1611;
+			int readSize = target->read(data,65535);
+			if(readSize < 1)
+				{
+					break;
+				}
+			QByteArray temp(data,readSize);
+			buffer += temp;
+			memset(data,0,65535);
 		}
+	delete[] data;
+	
+	switch (type) {
+		case NONE:
+			{
+			break;
+			}
+		case XOR:
+			{
+			for(int i = 0;i<buffer.size();i++)
+				{
+					buffer[i] = buffer[i] ^ 1611;
+				}
+			break;
+			}
+		case AES:
+			{
+			QAesWrap aes(key,key,QAesWrap::AesBit::AES_128);
+			QByteArray rec = aes.decrypt(buffer,QAesWrap::AesMode::AES_ECB);
+			break;
+			}
+		default:
+			{
+			break;
+			}
+		}
+
 	socket->write(buffer);
 }
 
 void Thread::leave()
 {
-	if(socket != nullptr)
+	qDebug()<<"dissconnected";
+	if(socketStop == false)
 		{
-			qDebug()<<"delete socket";
 			socket->disconnectFromHost();
 			socket->close();
 			socket->deleteLater();
+			socketStop = true;
 		}
-	if(target != nullptr)
+	if(targetStop == false)
 		{
-			qDebug()<<"delete target";
 			target->disconnectFromHost();
 			target->close();
 			target->deleteLater();
+			targetStop = true;
 		}
 	exit();
 }

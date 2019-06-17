@@ -5,7 +5,7 @@
 #-------------------------------------------------
 
 QT       += core gui network
-
+CONFIG += c++11
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 TARGET = socks5
@@ -30,7 +30,8 @@ SOURCES += \
     thread.cpp \
     analysis.cpp \
     udp.cpp \
-    factory.cpp
+    qaeswrap.cpp \
+    aes.c
 
 HEADERS += \
         mainwindow.h \
@@ -38,7 +39,8 @@ HEADERS += \
     thread.h \
     analysis.h \
     udp.h \
-    factory.h
+    aes.h \
+    qaeswrap.h
 
 FORMS += \
         mainwindow.ui

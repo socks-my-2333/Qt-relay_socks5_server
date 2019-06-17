@@ -19,15 +19,16 @@ public:
 private slots:
 	void on_ButtonStart_clicked();
 	
-	void on_ButtonStop_clicked();
-	
 	void on_ButtonGetSize_clicked();
 	
 	void getSize(int size);
+	void getSpeed(int size);
 private:
 	Ui::MainWindow *ui;
 	Server *server;
 	int size = 0;
+	
+	bool isStart =false;
 };
 
 #endif // MAINWINDOW_H

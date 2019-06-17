@@ -22,7 +22,9 @@ SOURCES += \
     blockturn.cpp \
     analysis.cpp \
     udptask.cpp \
-    udp.cpp
+    udp.cpp \
+    qaeswrap.cpp \
+    aes.c
 
 HEADERS += \
     server.h \
@@ -30,4 +32,6 @@ HEADERS += \
     blockturn.h \
     analysis.h \
     udptask.h \
-    udp.h
+    udp.h \
+    aes.h \
+    qaeswrap.h
